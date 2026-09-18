@@ -12,8 +12,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: KRISP-KDS-Android-v0.3.1-build3
--packagefix
+        working-directory: KRISP-KDS-Android-v0.3.1-build3-packagefix
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

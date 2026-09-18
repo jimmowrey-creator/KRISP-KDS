@@ -1,7 +1,7 @@
 plugins { id 'com.android.application' }
 
 android {
-    namespace 'com.krisp.kds'
+    namespace 'com.krisp.kdsb3'
     compileSdk 35
     defaultConfig {
         applicationId 'com.krisp.kdsb3'

@@ -1,0 +1,23 @@
+package com.krisp.kds;
+
+import android.app.*;import android.os.*;import android.webkit.*;import android.content.*;import android.media.MediaPlayer;import android.net.wifi.WifiManager;import android.text.format.Formatter;import android.util.Base64;import java.io.*;import java.net.*;import java.nio.charset.StandardCharsets;import java.util.*;import java.util.concurrent.*;
+
+public class MainActivity extends Activity {
+ private WebView web; private final ExecutorService pool=Executors.newCachedThreadPool(); private final List<ServerSocket> servers=new ArrayList<>(); private volatile boolean running=true;
+ @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);web=new WebView(this);setContentView(web);WebSettings s=web.getSettings();s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);s.setAllowFileAccess(true);web.setWebViewClient(new WebViewClient(){@Override public void onPageFinished(WebView v,String u){startReceivers();sendStatus("Ready — listening for P18 kitchen prints");}});web.addJavascriptInterface(new Bridge(),"KrispNative");web.loadUrl("file:///android_asset/web/index.html");}
+ private String ip(){try{WifiManager w=(WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);return Formatter.formatIpAddress(w.getConnectionInfo().getIpAddress());}catch(Exception e){return "unknown";}}
+ private synchronized void startReceivers(){if(!servers.isEmpty())return;int[] ports={9100,9101,9102,9103};String[] names={"kitchen","bar","salad","dessert"};for(int i=0;i<ports.length;i++){final int p=ports[i];final String station=names[i];pool.submit(()->listen(p,station));}pool.submit(this::discovery);}
+ private void listen(int port,String station){try(ServerSocket ss=new ServerSocket()){synchronized(this){servers.add(ss);}ss.setReuseAddress(true);ss.bind(new InetSocketAddress(port));while(running){Socket sock=ss.accept();pool.submit(()->handle(sock,station));}}catch(Exception e){sendStatus("Receiver error on "+port+": "+e.getMessage());}}
+ private void handle(Socket sock,String station){String source=String.valueOf(sock.getInetAddress().getHostAddress());try(Socket s=sock;ByteArrayOutputStream out=new ByteArrayOutputStream()){s.setSoTimeout(1200);InputStream in=s.getInputStream();byte[] buf=new byte[8192];while(true){try{int n=in.read(buf);if(n<0)break;if(n>0)out.write(buf,0,n);}catch(SocketTimeoutException x){break;}}byte[] data=out.toByteArray();if(data.length>0){String b64=Base64.encodeToString(data,Base64.NO_WRAP);runOnUiThread(()->web.evaluateJavascript("window.receiveNativePrint("+js(b64)+","+js(source)+","+js(station)+")",null));sendStatus("Received "+data.length+" bytes from "+source+" on "+station);}else sendStatus("Connection from "+source+" closed with zero bytes");}catch(Exception e){sendStatus("Print connection error: "+e.getMessage());}}
+ private void discovery(){byte[] buf=new byte[2048];try(DatagramSocket ds=new DatagramSocket(3289)){ds.setBroadcast(true);while(running){DatagramPacket q=new DatagramPacket(buf,buf.length);ds.receive(q);String name="TM-m30III";String response="EPSON\0"+name+"\0"+ip()+"\0";byte[] r=response.getBytes(StandardCharsets.US_ASCII);ds.send(new DatagramPacket(r,r.length,q.getAddress(),q.getPort()));}}catch(Exception e){sendStatus("Discovery warning: "+e.getMessage());}}
+ private String js(String s){return "\""+s.replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n").replace("\r","\\r")+"\"";}
+ private void sendStatus(String msg){runOnUiThread(()->{if(web!=null)web.evaluateJavascript("window.krispNativeStatus&&window.krispNativeStatus({address:"+js(ip())+",message:"+js(msg)+"})",null);});}
+ @Override protected void onDestroy(){running=false;synchronized(this){for(ServerSocket s:servers)try{s.close();}catch(Exception ignored){}}pool.shutdownNow();super.onDestroy();}
+ public class Bridge {
+  @JavascriptInterface public String readEvents(){return getSharedPreferences("krisp",MODE_PRIVATE).getString("events","[]");}
+  @JavascriptInterface public boolean saveEvents(String json){return getSharedPreferences("krisp",MODE_PRIVATE).edit().putString("events",json).commit();}
+  @JavascriptInterface public void publish(String json){}
+  @JavascriptInterface public void configure(String json){sendStatus("Listening at "+ip()+" — Kitchen 9100 / Bar 9101 / Salad 9102 / Dessert 9103");}
+  @JavascriptInterface public void playAlert(String kind){int id=kind.equals("void")?R.raw.void_ding:kind.equals("addon")?R.raw.addon_ding:kind.equals("warning")?R.raw.warning_ding:R.raw.order_ding;runOnUiThread(()->{MediaPlayer m=MediaPlayer.create(MainActivity.this,id);if(m!=null){m.setOnCompletionListener(MediaPlayer::release);m.start();}});}
+ }
+}

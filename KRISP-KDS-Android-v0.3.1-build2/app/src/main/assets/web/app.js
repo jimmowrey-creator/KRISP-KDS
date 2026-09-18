@@ -1,0 +1,107 @@
+// Both Android editions share the receiver and ticket workflow.
+const kdsBrand = new URLSearchParams(location.search).get('brand') === 'krisp'
+ ? {name:'KRISP KDS', sandwichForm:false}
+ : {name:'Chico Locker KDS', sandwichForm:true};
+
+function familiarSlip(o,visible){
+ if(!kdsBrand.sandwichForm)return '';
+ return o.items.filter(i=>visible.includes(i.station)).map(i=>{
+ const customerName=o.metadata?.customer||(o.notes||[]).find(n=>/^(?:Customer|Consumer):?\s+\S/i.test(n))?.replace(/^(?:Customer|Consumer):?\s+/i,'')||'';
+ const nameWords=customerName.split(/\s+/),nameLines=[''];for(const word of nameWords){if(nameLines.at(-1).length+word.length>24)nameLines.push(word);else nameLines[nameLines.length-1]+=(nameLines.at(-1)?' ':'')+word;}
+ const mods=i.modifiers.map(m=>m.replace(/^(?:B|F|EM|HC|C|S):\s*/,'').trim());
+ const tokens=mods.flatMap(m=>m.split(/,\s*/)).map(m=>m.toUpperCase());
+ const selected=aliases=>aliases.some(a=>tokens.includes(a));
+ const sideModifiers=mods.flatMap(value=>value.split(/,\s*/)).map(value=>value.replace(/^[A-Z ]+:\s*/i,'').replace(/^\?\s*/,'').trim()).filter(value=>!/^no\b/i.test(value));
+ const sideNotes=[
+  [ /\bhorse\s?radish\b/i, 'Horseradish' ],
+  [ /\b(?:BBQ|barbecue|barbeque) sauce\b/i, 'BBQ Sauce' ],
+  [ /\b(?:veggies|vegetables)\b.*\b(?:on the side|on side|side|ots)\b|\b(?:side of|ots)\s+(?:veggies|vegetables)\b/i, 'Veggies on side' ]
+ ].filter(([pattern])=>sideModifiers.some(value=>pattern.test(value))).map(([,name])=>name);
+ const selections=[i.name,...mods].map(value=>String(value).replace(/^\?\s*/,'').trim());
+ const drink=selections.find(value=>!/^no\b/i.test(value)&&(/^(?:D|DRINK|BEVERAGE):\s*\S/i.test(value)||/\b(?:coke|coca[ -]?cola|pepsi|sprite|dr\.? pepper|root beer|iced tea|ice tea|sweet tea|lemonade|bottled water|diet cola|fanta|mountain dew|7[ -]?up)\b/i.test(value)))||'';
+ const drinkName=drink.replace(/^(?:D|DRINK|BEVERAGE):\s*/i,'');
+ const drinkLines=[''];for(const word of drinkName.split(/\s+/)){if(drinkLines.at(-1)&&drinkLines.at(-1).length+word.length>12)drinkLines.push(word);else drinkLines[drinkLines.length-1]+=(drinkLines.at(-1)?' ':'')+word;}
+ const hasChips=selections.some(value=>!/^no\b/i.test(value.replace(/^[A-Z ]+:\s*/i,''))&&/\bchips?\b/i.test(value));
+ const soupSize=size=>[i.name,...tokens].some(value=>{
+ const text=String(value).replace(/^\?\s*/,'').trim().toUpperCase();
+ const sizes=size==='small'?['SMALL','SML']:['LARGE','LRG'];
+ return sizes.some(z=>[z+' SOUP',z+' SOUP SUBSTITUTE','SOUP '+z].includes(text));
+ });
+ const label=(x,y,text,aliases=[],size=32,anchor='start')=>{
+ return '<text x="'+x+'" y="'+y+'" font-size="'+size+'" text-anchor="'+anchor+'" font-weight="400">'+esc(text)+'</text>';
+ };
+ const bread=[['WHITE',['WHITE','WHITE BREAD','SLICED WHITE','WHITE SLICED BREAD','WHITE ROLL']],['WHEAT',['WHEAT','WHEAT BREAD','SLICED WHEAT','WHEAT SLICED BREAD','WHEAT ROLL']],['ONION',['ONION BREAD','SLICED ONION','ONION ROLL']],['S DOUGH',['SOURDOUGH','SOURDOUGH BREAD','SLICED SOURDOUGH','SOURDOUGH ROLL']],['RYE',['RYE','RYE BREAD','SLICED RYE','RYE ROLL']]];
+ for(const [,aliases] of bread){for(const alias of [...aliases]){if(alias.startsWith('SLICED '))aliases.push(alias.slice(7)+' SLICED');}}
+ const breadSelected=bread.some(([,aliases])=>selected(aliases))||selected(['SLICED BREAD','SLICE','SLICED']);
+ const slicedBread=breadSelected&&!tokens.some(t=>/\bROLLS?\b/i.test(t)&&!/^NO\b/i.test(t));
+ const meat=[['CHEESE CO.',['CHEESE COMBO']],['ROAST BF',['ROAST BEEF']],['SMK TURKEY',['SMOKED TURKEY']],['HAM',['HAM']],['PASTRAMI',['PASTRAMI']],['SALAMI',['SALAMI']],['CORNED BF',['CORNED BEEF']],['BBQ BF',['BBQ BEEF']],['SAUSAGE',['SAUSAGE','SMOKED SAUSAGE']]];
+ const cheese=[['MILD',['MILD CHEDDAR','HOT MILD CHEDDAR']],['PROV',['PROVOLONE','HOT PROVOLONE']],['SWISS',['SWISS','HOT SWISS']],['AMERIC',['AMERICAN','HOT AMERICAN']],['PEPPER',['PEPPER JACK','HOT PEPPER JACK']],['SMKY C',['SMOKED CHEDDAR']]];
+ // Item names explicitly identify size/meat; never infer a meat from an unrelated sandwich name.
+ if(/\bLarge\b/i.test(i.name))tokens.push('SIZE L');else if(/\bSmall\b/i.test(i.name))tokens.push('SIZE S');else if(/\bRegular\b/i.test(i.name))tokens.push('SIZE R');
+ for(const [,aliases] of meat)for(const a of aliases)if(i.name.toUpperCase().includes(a))tokens.push(a);
+ const svg='<svg class="paper-form" viewBox="35 55 830 1145" role="img" aria-label="Sandwich form for order '+esc(o.number)+'"><rect width="900" height="1200" fill="#f4e783"/><g fill="none" stroke="#171710" stroke-width="3"><path d="M60 145H355 M155 75V145 M255 75V145 M355 75V720 M655 75V610 M60 720H840 M355 610H835 M655 390H835 M655 500H835 M750 390V720 M60 800H845 M60 930H845 M60 1090H845 M155 720V800 M305 720V930 M410 720V800 M510 720V930 M610 720V800 M725 720V800 M510 800L655 800V930 M655 800L845 800L655 930 M510 930L655 800 M155 800L305 720"/></g><g fill="#151510" font-family="Arial, sans-serif">'
+ +label(105,132,'S',[],66,'middle')+label(205,132,'R',[],66,'middle')+label(305,132,'L',[],66,'middle')
+ +(selected(['SIZE L','LARGE'])?'<path aria-label="Large selected" d="M281 137 L331 82" stroke="#181818" stroke-width="12" stroke-linecap="round"/>':selected(['SIZE R','REGULAR'])?'<path aria-label="Regular selected" d="M181 137 L231 82" stroke="#181818" stroke-width="12" stroke-linecap="round"/>':'')
+ +bread.map(([t,a],n)=>{const y=210+n*88;return label(100,y,t,[],38)+(selected(a)?'<path aria-label="'+esc(t)+' selected" d="M96 '+(y-13)+' L'+(100+t.length*22)+' '+(y-13)+'" fill="none" stroke="#181818" stroke-width="6" stroke-linecap="round"/>':'');}).join('')
+ +label(100,650,'SLICE',[],38)
+ +(slicedBread?'<path aria-label="Sliced bread" d="M96 637 L210 637" fill="none" stroke="#181818" stroke-width="6" stroke-linecap="round"/>':'')
+ +meat.map(([t,a],n)=>label(370,110+n*57,t,a,33)).join('')
+ +((/\btri[ -]?tip\b/i.test(i.name)||tokens.some(t=>/\btri[ -]?tip\b/i.test(t)&&!/^NO\b/i.test(t)))?'<g aria-label="Tri-tip selected" transform="rotate(-6 490 150)" fill="#181818" stroke="#181818" stroke-width="3" font-family="Segoe Print, Comic Sans MS, cursive" font-weight="900"><text x="400" y="151" font-size="96">T/T</text></g>':'')
+ +((/\bfrench[ -]+dip\b/i.test(i.name)||tokens.some(t=>/\bfrench[ -]+dip\b/i.test(t)&&!/^NO\b/i.test(t)))?'<g aria-label="French dip selected" transform="rotate(-6 490 150)" fill="#181818" stroke="#181818" stroke-width="3" font-family="Segoe Print, Comic Sans MS, cursive" font-weight="900"><text x="400" y="151" font-size="96">F D</text></g>':'')
+ +((/\bbrisket\b/i.test(i.name)||tokens.some(t=>/\bbrisket\b/i.test(t)&&!/^NO\b/i.test(t)))?'<g aria-label="Brisket selected" transform="rotate(-6 490 150)" fill="#181818" stroke="#181818" stroke-width="2" font-family="Segoe Print, Comic Sans MS, cursive" font-weight="900"><text x="370" y="151" font-size="52" textLength="265" lengthAdjust="spacingAndGlyphs">BRISKET</text></g>':'')
+ +cheese.map(([t,a],n)=>{const y=110+n*55;return label(670,y,t,[],34)+(selected(a)?'<path aria-label="'+esc(t)+' cheese selected" d="M666 '+(y-12)+' L'+(670+t.length*19)+' '+(y-12)+'" fill="none" stroke="#181818" stroke-width="6" stroke-linecap="round"/>':'');}).join('')
+ +(!cheese.some(([,aliases])=>selected(aliases))?'<g aria-label="No cheese" stroke="#181818" stroke-width="18" stroke-linecap="round" opacity=".9"><path d="M678 85 L818 374 M818 85 L678 374"/></g>':'')
+ +label(667,459,'POT')+label(763,459,'MAC')
+ +label(667,570,'B·B')+label(770,570,'PP')+label(773,680,'CS')+label(370,660,'SIDE')
+ +sideNotes.map((note,n)=>'<text aria-label="Side modifier" x="450" y="'+(640+n*32)+'" font-size="34" font-weight="800" fill="#c00000">'+esc(note)+'</text>').join('')
+ +[[655,390,95,110,['POT','POTATO SALAD'],'POT'],[750,390,90,110,['MAC','MACARONI SALAD'],'MAC'],[655,500,95,110,['B-B','BAKED BEANS'],'B·B'],[750,500,90,110,['PP'],'PP'],[750,610,90,110,['COLESLAW','CS'],'CS']].map(([x,y,w,h,aliases,name])=>selected(aliases)?'<rect aria-label="'+name+' side selected" x="'+(x+5)+'" y="'+(y+5)+'" width="'+(w-10)+'" height="'+(h-10)+'" fill="none" stroke="#181818" stroke-width="6" stroke-linejoin="round"/>':'').join('')
+ +label(65,773,'MAYO',['MAYO'],29)+label(163,754,'YLOW',['YELLOW MUSTARD'],27)+label(225,788,'SN',['SN'],27)
+ +(!selected(['MAYO','MAYONNAISE'])?'<path aria-label="No mayo" d="M69 733 L144 788 M144 733 L69 788" fill="none" stroke="#181818" stroke-width="10" stroke-linecap="round"/>':'')
+ +(!selected(['YELLOW MUSTARD'])?'<path aria-label="No yellow mustard" d="M166 731 L231 753 M231 731 L166 763" fill="none" stroke="#181818" stroke-width="9" stroke-linecap="round"/>':'')
+ +(!selected(['SN'])?'<path aria-label="No SN" d="M235 767 L292 790 M292 758 L235 790" fill="none" stroke="#181818" stroke-width="9" stroke-linecap="round"/>':'')
+ +label(318,772,'LETT',['LETTUCE'],29)+label(422,772,'TOM',['TOMATOES'],29)+label(519,772,'PICK',['PICKLES'],29)+label(619,772,'ONION',['ONION'],29)+label(744,772,'PEP',['PEPPERONCINI'],29)
+ +[[315,400,['LETTUCE'],'lettuce'],[420,500,['TOMATOES','TOMATO'],'tomato'],[520,600,['PICKLES','PICKLE'],'pickles'],[620,715,['ONION','ONIONS'],'onion'],[735,825,['PEPPERONCINI'],'pepperoncini']].map(([left,right,aliases,name])=>selected(aliases)?'':'<path aria-label="No '+name+'" d="M'+left+' 733 L'+right+' 787 M'+right+' 733 L'+left+' 787" fill="none" stroke="#181818" stroke-width="10" stroke-linecap="round"/>').join('')
+ +label(65,837,'DRINK')+label(315,837,'CHIPS')
+ +(drinkName?'<text aria-label="Selected drink" x="70" y="870" font-size="'+Math.min(30,Math.floor(54/drinkLines.length))+'" font-weight="700">'+drinkLines.map((line,n)=>'<tspan x="70" dy="'+(n?Math.min(32,Math.floor(54/drinkLines.length)):0)+'">'+esc(line)+'</tspan>').join('')+'</text>':'')
+ +(hasChips?'<text aria-label="Chips selected" x="405" y="902" text-anchor="middle" font-size="60" font-weight="700">1</text>':'')
+ +'<g transform="rotate(-40 563 842)">'+label(525,835,'SML',[],26)+label(522,864,'SOUP',[],26)+'</g><g transform="rotate(-40 608 897)">'+label(580,882,'LRG',[],26)+label(573,912,'SOUP',[],26)+'</g>'
+ +( /^(?:to[ -]?go|take[ -]?out|takeaway)$/i.test((o.type||'').trim())||tokens.some(t=>/^(?:to[ -]?go|take[ -]?out|takeaway)$/i.test(t))?'<path aria-label="To go" d="M657 803 L842 803 L657 928 Z" fill="none" stroke="#181818" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>':'')
+ +(/^(?:for[ -]?here|here|dine[ -]?in|eat[ -]?in)$/i.test((o.type||'').trim())||tokens.some(t=>/^(?:for[ -]?here|here|dine[ -]?in|eat[ -]?in)$/i.test(t))?'<path aria-label="For here" d="M659 926 L838 807 L838 926 Z" fill="none" stroke="#181818" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>':'')
+ +(soupSize('small')?'<path aria-label="Small soup selected" d="M514 804 L648 804 L514 921 Z" fill="none" stroke="#181818" stroke-width="10" stroke-linejoin="round"/>':'')
+ +(soupSize('large')?'<path aria-label="Large soup selected" d="M651 809 L651 926 L519 926 Z" fill="none" stroke="#181818" stroke-width="10" stroke-linejoin="round"/>':'')
+ +label(671,849,'GO')+label(731,909,'HERE')+label(65,973,'NAME')+label(570,973,'PHONE')
+ +'<text x="65" y="1018" fill="#152b71" font-size="32" font-weight="700">'+nameLines.map((line,n)=>'<tspan x="65" dy="'+(n?36:0)+'">'+esc(line)+'</tspan>').join('')+'</text></g></svg>';
+ return '<section class="familiar-slip exact-form">'+svg+(o.cancelledAt?'<div class="slip-cancel">CANCELLED — DO NOT PREPARE</div>':'')+'</section>';
+ }).join('');
+}
+const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+document.title=kdsBrand.name;
+$('app-name').innerHTML=esc(kdsBrand.name)+' <span class="leaf">●</span>';
+const requestedStation=new URLSearchParams(location.search).get('station');
+let orders=[],station=['expo','kitchen','bar'].includes(requestedStation)?requestedStation:localStorage.getItem('jim-station')||'expo',history=false,online=false,auto=null,warning=5,late=10,lastRender='';
+// Direct file opening is a deliberately separate, offline-only demo.
+const offline=location.protocol==='file:'||location.pathname.includes('/demo/')||window.jimsNative===true;
+const storageKey=window.jimsNative===true?'jim-native-orders':'jim-demo-orders';
+if(offline)orders=JSON.parse(localStorage.getItem(storageKey)||'[]');
+if(window.jimsNative===true)orders=orders.filter(o=>Date.now()-o.createdAt<7*86400000||Object.values(o.states||{}).some(state=>state!=='COMPLETE'));
+function persist(){localStorage.setItem(storageKey,JSON.stringify(orders));}
+function sample(){const n=orders.length+101;return {id:crypto.randomUUID(),number:String(n),demo:true,createdAt:Date.now(),source:$('source').value,type:n%2?'Dine in · Table 4':'Take out',notes:n%3===0?['ALLERGY: sesame — confirm with server']:[],states:{kitchen:'NEW',bar:'NEW'},done:[],items:[{id:'0',qty:2,name:'Cheeseburger',modifiers:['NO ONION','EXTRA CHEESE'],station:'kitchen'},{id:'1',qty:1,name:'Fries',modifiers:['Well done'],station:'kitchen'},{id:'2',qty:2,name:'Margarita',modifiers:['No ice'],station:'bar'}]};}
+async function post(route,body){const r=await fetch('/api/'+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw Error((await r.json()).error);return r.json();}
+async function refresh(){if(offline){online=true;render();return;}try{const r=await fetch('/api/state');if(!r.ok)throw Error();const d=await r.json();orders=d.orders;warning=d.warningMinutes;late=d.lateMinutes;online=true;$('listeners').textContent=Object.entries(d.listeners).map(([s,v])=>s+': '+v).join(' · ');$('notice').textContent='';}catch{online=false;$('notice').textContent='Display disconnected. Orders shown may be stale; reconnect the local service before changing tickets.';}render();}
+function elapsed(o,s){const end=s&&o.states[s]==='COMPLETE'?o.completedAt?.[s]:null;const sec=Math.max(0,Math.floor(((end||Date.now())-o.createdAt)/1000));return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;}
+function render(){if(window.jimsNative===true){const keep=orders.filter(o=>Date.now()-o.createdAt<7*86400000||Object.values(o.states||{}).some(state=>state!=='COMPLETE'));if(keep.length!==orders.length){orders=keep;persist();}}const signature=JSON.stringify([orders,station,history,online,warning,late,orders.map(o=>Math.floor((Date.now()-o.createdAt)/60000)>=late?2:Math.floor((Date.now()-o.createdAt)/60000)>=warning?1:0)]);if(signature===lastRender){document.querySelectorAll('[data-timer]').forEach(el=>{const o=orders.find(o=>o.id===el.dataset.timer);if(o)el.textContent=elapsed(o,el.dataset.timerStation||null);});return;}lastRender=signature; $('connection').textContent=window.jimsNative===true?'● Direct P18 receiver':offline?'Offline demo · this device only':online?'● Local service connected':'● Disconnected';$('sample').disabled=!online||window.jimsNative===true;$('auto').disabled=!online||window.jimsNative===true;if(window.jimsNative===true)document.querySelector('.demo-tools').hidden=true;
+ document.querySelectorAll('[data-station]').forEach(b=>b.classList.toggle('selected',b.dataset.station===station));$('history').classList.toggle('selected',history);$('title').textContent=history?'Completed stations / Recall':'Service board';
+ let cards=[];for(const o of [...orders].sort((a,b)=>a.createdAt-b.createdAt)){const visible=Object.keys(o.states).filter(s=>(station==='expo'||station===s)&&(history?o.states[s]==='COMPLETE':o.states[s]!=='COMPLETE'));if(!visible.length)continue;
+ const age=(Date.now()-o.createdAt)/60000;cards.push(`<article class="ticket ${o.cancelledAt?'cancelled':''} ${history?'':age>=late?'late':age>=warning?'warn':''}">${familiarSlip(o,visible)}<div class="ticket-head"><div><div class="order-no">#${esc(o.number)}</div><div class="meta ${/^(precheck|call[ -]?in)$/i.test(o.type||'')?'call-in-label':''}">${esc(o.type === 'Precheck' ? 'Call in' : o.type)}</div><div class="meta">${esc(o.source)} ${o.demo?'· DEMO':''} · ${new Date(o.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div></div><div><div class="elapsed" data-timer="${o.id}" data-timer-station="${history?visible[0]:''}">${elapsed(o,history?visible[0]:null)}</div><div class="age-label">${history?'AT COMPLETION':'ELAPSED'}</div></div></div>${o.cancelledAt?'<div class="cancel-banner">CANCELLED — DO NOT PREPARE</div>':''}<div class="customer-slot">${o.metadata?.customer?`<div class="customer-label">Customer: ${esc(o.metadata.customer)}</div>`:''}</div>${(o.notes||[]).filter(n=>!o.metadata?.customer||n!=='Customer: '+o.metadata.customer).map(n=>`<div class="note">${esc(n.replace(/^Consumer\b/i,'Customer'))}</div>`).join('')}${(o.warnings||[]).filter(n=>n!=='Unknown ESC command; verify ticket').map(n=>`<div class="note">VERIFY PRINT: ${esc(n.replace(/^Consumer\b/i,'Customer'))}</div>`).join('')}${!o.items.length&&o.type==='Precheck'?'<div class="note">No item names were sent in this precheck. Check the POS kitchen printer assignment for the ordered items.</div>':o.needsReview?'<div class="note">Check original print below before preparing.</div>':''}${visible.map(s=>`<section class="station-section"><div class="station-heading"><span class="station-name">${esc(s)}${history?' · '+elapsed(o,s):''}</span><span class="badge ${o.states[s]}">${o.states[s]}</span></div>${o.items.filter(i=>i.station===s).map(i=>`<button class="item ${o.done.includes(i.id)?'done':''}" data-id="${o.id}" data-s="${s}" data-a="item" data-item="${esc(i.id)}" role="checkbox" aria-checked="${o.done.includes(i.id)}" ${history||!online||o.cancelledAt?'disabled':''}><span class="item-check" aria-hidden="true">${o.done.includes(i.id)?'✓':' '}</span><span class="qty">${i.qty}×</span><span><span class="name">${esc(i.name)}</span>${i.modifiers.map(m=>`<div class="modifier">${esc(m)}</div>`).join('')}</span></button>`).join('')}<button class="station-action" data-id="${o.id}" data-s="${s}" data-a="${history?'recall':'next'}" ${!online||(history&&o.cancelledAt)?'disabled':''}>${o.cancelledAt?(history?'Cancellation acknowledged':'Acknowledge cancellation'):history?'↶ Recall to active':({NEW:'Bump / Complete',WORKING:'Bump / Complete',READY:'Bump / Complete'})[o.states[s]]}</button></section>`).join('')}${!history&&!o.cancelledAt?`<button class="cancel-order" data-id="${o.id}" data-s="${visible[0]}" data-a="cancel" ${!online?'disabled':''}>Cancel Order</button>`:''}${history&&Object.values(o.states).every(state=>state==='COMPLETE')?`<button class="cancel-order" data-id="${o.id}" data-a="delete" ${!online?'disabled':''}>Delete Order</button>`:''}${o.rawText!==undefined?`<details class="raw"><summary>Original print text · ${esc(o.capture)}</summary><pre>${esc(o.rawText||'No readable text. Inspect binary capture.')}</pre></details>`:''}</article>`);}
+ $('board').innerHTML=cards.join('')||`<div class="empty"><h2>${history?'Nothing to recall':'Ready for the next order'}</h2><p>${history?'Completed stations will appear here.':'Generate a sample from either P18 to explore the workflow.'}</p></div>`;$('summary').textContent=`${cards.length} tickets · Oldest first · Warning ${warning}m / Late ${late}m`;
+}
+$('stations').onclick=e=>{if(e.target.dataset.station){station=e.target.dataset.station;localStorage.setItem('jim-station',station);render();}};
+$('history').onclick=()=>{history=!history;render();};
+$('sample').onclick=async()=>{try{if(offline){orders.push(sample());persist();render();}else{await post('demo',{source:$('source').value});await refresh();}}catch(e){$('notice').textContent=e.message;}};
+$('auto').onclick=()=>{if(auto){clearInterval(auto);auto=null;}else{auto=setInterval(()=>{if(online)$('sample').click();},12000);$('sample').click();}$('auto').textContent='Auto demo: '+(auto?'on':'off');};
+$('board').onclick=async e=>{const b=e.target.closest('[data-a]');if(!b||!online)return;const action={id:b.dataset.id,station:b.dataset.s,action:b.dataset.a,item:b.dataset.item};if(action.action==='cancel'&&!confirm('Cancel this entire order at every kitchen/bar station? This does not void the sale on the P18.'))return;if(action.action==='delete'&&!confirm('Permanently delete this completed order and its stored print capture?'))return;try{if(offline){if(action.action==='delete'){orders=orders.filter(o=>o.id!==action.id);persist();render();return;}const o=orders.find(o=>o.id===action.id),s=action.station;if(action.action==='cancel'){o.cancelledAt=Date.now();for(const key of Object.keys(o.states)){o.states[key]='NEW';delete o.completedAt?.[key];}}else if(action.action==='item'){o.done=o.done.includes(action.item)?o.done.filter(id=>id!==action.item):[...o.done,action.item];if(o.items.filter(i=>i.station===s).every(i=>o.done.includes(i.id))){o.states[s]='COMPLETE';o.completedAt||={};o.completedAt[s]=Date.now();}}else if(action.action==='recall'){o.states[s]='NEW';o.done=o.done.filter(id=>!o.items.some(i=>i.id===id&&i.station===s));delete o.completedAt?.[s];}else{o.states[s]='COMPLETE';if(o.states[s]==='COMPLETE'){o.completedAt||={};o.completedAt[s]=Date.now();}}persist();render();}else{await post('action',action);await refresh();}}catch(e){$('notice').textContent=e.message;}};
+$('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{$('notice').textContent='Use the browser’s full-screen option.';}};
+setInterval(render,1000);if(!offline)setInterval(refresh,2000);refresh();
+
+
+

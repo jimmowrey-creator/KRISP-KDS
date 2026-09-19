@@ -10,7 +10,14 @@ adb('shell','appops','set','com.krisp.kdsb4','REQUEST_INSTALL_PACKAGES','allow')
 adb('shell','run-as','com.krisp.kdsb4','mkdir','-p','cache')
 for file,destination in [(b/'candidate/KRISP-KDS-smoketest.apk','krisp-update.apk'),(b/'candidate/update.json','candidate.json')]:
  subprocess.run(['adb','shell',f"run-as com.krisp.kdsb4 sh -c 'cat > cache/{destination}'"],input=file.read_bytes(),check=True)
-result=adb('shell','am','instrument','-w','com.krisp.update.test/com.krisp.update.test.UpdateInstallTest');print(result);assert 'failure=' not in result and 'installer launched' in result,result
+instrument_log=(out/'instrumentation.txt').open('w')
+instrument=subprocess.Popen(['adb','shell','am','instrument','-w','com.krisp.update.test/com.krisp.update.test.UpdateInstallTest'],stdout=instrument_log,stderr=subprocess.STDOUT)
+for attempt in range(60):
+ time.sleep(1);result=(out/'instrumentation.txt').read_text()
+ if 'installer launched' in result:break
+ if instrument.poll() is not None:raise AssertionError(result)
+else:raise AssertionError('Instrumentation did not reach installer: '+result)
+print(result);assert 'failure=' not in result,result
 clicked=False
 for attempt in range(15):
  time.sleep(1);adb('shell','uiautomator','dump','/sdcard/installer.xml');adb('pull','/sdcard/installer.xml',out/'installer.xml')

@@ -20,6 +20,8 @@ public final class UpdateInstallTest extends Instrumentation {
   Field offered=activity.getClass().getDeclaredField("offered"),verified=activity.getClass().getDeclaredField("verified");offered.setAccessible(true);verified.setAccessible(true);offered.set(activity,metadata);verified.set(activity,apk);
   Method install=activity.getClass().getDeclaredMethod("install");install.setAccessible(true);
   runOnMainSync(()->{try{install.invoke(activity);}catch(Exception e){throw new RuntimeException(e);}});
-  result.putString("result","Bridge loaded; checksum rejection passed; valid package verified; installer launched");finish(Activity.RESULT_OK,result);
+  result.putString("result","Bridge loaded; checksum rejection passed; valid package verified; installer launched");sendStatus(Activity.RESULT_OK,result);
+  // Keep the calling activity alive while the external driver confirms installation.
+  Thread.sleep(120000);finish(Activity.RESULT_OK,result);
  }catch(Throwable e){result.putString("failure",e.toString());finish(Activity.RESULT_CANCELED,result);}}
 }

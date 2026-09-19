@@ -1,0 +1,13 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.krisp.kdsb4" android:versionCode="37" android:versionName="0.3.2-build7">
+ <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35"/>
+ <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+ <uses-permission android:name="android.permission.INTERNET"/>
+ <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+ <application android:theme="@android:style/Theme.Material.Light.NoActionBar" android:label="@com.krisp.kdsb4:string/app_name" android:icon="@com.krisp.kdsb4:mipmap/ic_launcher" android:roundIcon="@com.krisp.kdsb4:mipmap/ic_launcher" android:debuggable="true" android:extractNativeLibs="false" android:usesCleartextTraffic="true">
+  <activity android:name="com.krisp.update.UpdateActivity" android:exported="true" android:screenOrientation="unspecified">
+   <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+  </activity>
+  <provider android:name="com.krisp.update.UpdateProvider" android:authorities="com.krisp.kdsb4.updates" android:exported="false" android:grantUriPermissions="true"/>
+ </application>
+</manifest>
+

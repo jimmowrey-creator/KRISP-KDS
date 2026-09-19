@@ -1,0 +1,7 @@
+build/
+dist/
+smoke/
+manifest.apk
+__pycache__/
+*.keystore
+*.p12

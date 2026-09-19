@@ -58,7 +58,7 @@ def main():
     run(bt/('zipalign'+suffix),'-c','-p','4',apk)
     with zipfile.ZipFile(a.baseline) as original,zipfile.ZipFile(apk) as final:
         changed=[name for name in original.namelist() if not name.startswith('META-INF/') and original.read(name)!=final.read(name)]
-        assert set(changed)=={'AndroidManifest.xml','assets/web/index.html','assets/web/krisp-core.js'},changed
+        assert set(changed)=={'AndroidManifest.xml','assets/web/index.html','assets/web/krisp-core.js','assets/web/krisp-app.js','assets/web/krisp.css'},changed
         added={n for n in final.namelist() if not n.startswith('META-INF/')}-set(original.namelist());assert added=={next_dex,'assets/web/updater.js'},added
         for name in native_dex:assert original.read(name)==final.read(name),'Native code must remain byte-identical: '+name
         (b/'packaged-core.js').write_bytes(final.read('assets/web/krisp-core.js'))

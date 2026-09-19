@@ -31,8 +31,13 @@ for attempt in range(30):
  time.sleep(1);info=adb('shell','dumpsys','package','com.krisp.kdsb4')
  if f'versionCode={v["versionCode"]+1} ' in info:break
 else:raise AssertionError('Android did not install the higher-version APK')
+# Dismiss the installer's completion screen before explicitly reopening KRISP.
+time.sleep(3)
+adb('shell','input','keyevent','KEYCODE_BACK')
 print(adb('shell','am','start','-W','-n','com.krisp.kdsb4/com.krisp.update.UpdateActivity'))
 time.sleep(3)
+foreground=adb('shell','dumpsys','activity','activities')
+assert any('com.krisp.kdsb4/com.krisp.update.UpdateActivity' in line and ('mResumedActivity' in line or 'topResumedActivity' in line) for line in foreground.splitlines()),'KRISP was not foreground after relaunch: '+foreground
 with (out/'emulator-after-update.png').open('wb') as f:subprocess.run(['adb','exec-out','screencap','-p'],stdout=f,check=True)
 crashes=adb('logcat','-d','-b','crash');(out/'crash-log.txt').write_text(crashes);assert 'FATAL EXCEPTION' not in crashes,crashes
 saved=json.loads(adb('shell','run-as','com.krisp.kdsb4','cat','files/krisp-events.json'));assert any(e.get('id')=='preserve:1' for e in saved),'Existing ticket data was lost'

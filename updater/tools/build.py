@@ -10,7 +10,8 @@ def main():
     a.baseline=a.baseline.resolve();a.sdk=a.sdk.resolve();a.java=a.java.resolve();a.out=a.out.resolve();a.out.mkdir(parents=True,exist_ok=True)
     assert sha(a.baseline.read_bytes())==BASE_SHA,'Baseline must be the proven Build 4 APK'
     with zipfile.ZipFile(a.baseline) as original:
-        assert (ROOT/'test/native-print.js').read_bytes()==original.read('assets/web/native-print.js'),'Regression tests must use the unchanged packaged P18 parser'
+        parser=original.read('assets/web/native-print.js')
+        assert (ROOT/'test/native-print.js').read_text().replace('\r\n','\n')==parser.decode().replace('\r\n','\n'),'Regression parser differs from the packaged P18 parser'
     v=json.loads((ROOT/'version.json').read_text(encoding='utf-8-sig'));assert isinstance(v['versionCode'],int) and v['versionCode']>34
     assert re.fullmatch(r'KRISP-KDS-[\w.-]+\.apk',v['fileName']);assert re.fullmatch(r'[\w.-]+',v['tag'])
     b=ROOT/'build';b.mkdir(exist_ok=True);classes=b/'classes';stubs=b/'stubs';dex=b/'dex';tests=b/'tests'
@@ -61,7 +62,8 @@ def main():
         added={n for n in final.namelist() if not n.startswith('META-INF/')}-set(original.namelist());assert added=={next_dex,'assets/web/updater.js'},added
         for name in native_dex:assert original.read(name)==final.read(name),'Native code must remain byte-identical: '+name
         (b/'packaged-core.js').write_bytes(final.read('assets/web/krisp-core.js'))
-    env={**os.environ,'KRISP_CORE':str(b/'packaged-core.js')};run('node','--test',*sorted((ROOT/'test').glob('*.test.mjs')),env=env)
+    (b/'packaged-parser.js').write_bytes(parser)
+    env={**os.environ,'KRISP_CORE':str(b/'packaged-core.js'),'KRISP_PARSER':str(b/'packaged-parser.js')};run('node','--test',*sorted((ROOT/'test').glob('*.test.mjs')),env=env)
     report={'baselineSha256':BASE_SHA,'apkSha256':sha(apk.read_bytes()),'receiverDexUnchanged':True,'changedEntries':changed,'version':v,'signed':bool(a.keystore)}
     (a.out/'verification.json').write_text(json.dumps(report,indent=2)+'\n')
     metadata={'packageName':'com.krisp.kdsb4','versionCode':v['versionCode'],'versionName':v['versionName'],'size':apk.stat().st_size,'sha256':report['apkSha256'],'url':f'https://github.com/jimmowrey-creator/KRISP-KDS/releases/download/{v["tag"]}/{v["fileName"]}'}

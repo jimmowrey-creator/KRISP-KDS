@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 const ctx={window:{}};vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(new URL('./native-print.js',import.meta.url),'utf8'),ctx);
+vm.runInContext(fs.readFileSync(process.env.KRISP_PARSER||new URL('./native-print.js',import.meta.url),'utf8'),ctx);
 vm.runInContext(fs.readFileSync(process.env.KRISP_CORE||new URL('../web/krisp-core.js',import.meta.url),'utf8'),ctx);
 const C=ctx.KrispCore,config=C.settings(),at=1789788000000;
 const small='Regular Small Sandwich',large='Large Cold Sandwich';
